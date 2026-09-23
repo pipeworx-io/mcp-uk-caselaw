@@ -5,7 +5,7 @@ Find Case Law service: the Supreme Court, Privy Council, Court of Appeal, High
 Court, Court of Protection, Family Court, the Upper and First-tier Tribunals and
 the Employment Appeal Tribunal.
 
-Part of [Pipeworx](https://pipeworx.io) — an MCP gateway connecting AI agents to 1576+ live data sources.
+Part of [Pipeworx](https://pipeworx.io) — an MCP gateway connecting AI agents to 1669+ live data sources.
 
 Search by subject, party or judge, then read the **full text** of any judgment
 from its neutral citation — so a quoted passage or a cited authority can be
@@ -14,6 +14,29 @@ checked against what the court actually wrote.
 This is UK law only. US case law is a separate corpus served by `court-listener`
 (`search_case_law`, `find_case`, `get_opinion`); an American authority returned
 for a UK question is a wrong answer, not a near miss.
+
+## This is not all UK law
+
+Find Case Law is a real but partial corpus. A 0-row result means *not found
+here*, never *no such case*:
+
+- **No Crown Court, County Court or Magistrates' Court judgments.** Most of
+  what those courts decide is given orally and never transcribed, so Find Case
+  Law structurally cannot hold it.
+- **No dockets, pleadings or filings.** This is judgments only — there is no
+  UK equivalent of PACER here.
+- **Scotland and Northern Ireland's own court systems are not covered.** Only
+  England & Wales courts and the UK-wide apex courts/tribunals (Supreme Court,
+  Privy Council, Employment Appeal Tribunal, Upper Tribunal) are indexed. A
+  case that also went through the Court of Session or a Scottish/NI appeal may
+  still appear here only for its UK-level leg.
+- **The Employment Appeal Tribunal only — not the first-tier Employment
+  Tribunal.** `eat` covers appeals; ET claims before they reach appeal are a
+  different, uncovered corpus (see the `uk-tribunals` pack/task).
+- **No citator/treatment data.** A judgment comes back as published, with no
+  signal on whether it was later overturned, doubted or followed.
+- **Coverage is mostly 2001 onward**, comprehensively from 2003 for some
+  courts and much later for others (see Caveats below).
 
 ## Auth
 
@@ -49,15 +72,25 @@ citation text when the derived path 404s, reporting which route resolved it in
 Judgments are Crown copyright, published under the
 [Open Justice Licence](https://caselaw.nationalarchives.gov.uk/open-justice-licence).
 
+**Licence note.** The Open Justice Licence covers per-query pass-through — a
+caller searches, we relay the matching judgments back — but it explicitly
+excludes "computational analysis": bulk programmatic extraction or
+mirroring/indexing the corpus requires a separate licence Pipeworx does not
+hold. This pack is not, and must not become, a mirror of Find Case Law.
+
 ## Caveats worth passing to a user
 
 - **Coverage starts recently.** Find Case Law holds judgments the courts
   published to it — comprehensively from 2003 for some courts and much later for
   others. A missing older authority means *not held here*, not *no such case*.
   For historic authority a law-report subscription is still the answer.
-- **An unrecognised court code is rejected, not ignored.** `search_uk_caselaw`
-  returns `unknown_court_code` and points at `list_uk_courts`. Codes look like
-  `uksc`, `ewca/civ`, `ewhc/comm` and cannot be guessed from a court's name.
+- **An unrecognised court code is rejected before any request goes upstream**,
+  as an `invalid_arguments` error naming the bad code and the full valid list
+  (call `list_uk_courts` to get it fresh). Codes look like `uksc`, `ewca/civ`,
+  `ewhc/comm` and cannot be guessed from a court's name — and the Employment
+  Appeal Tribunal's code is `eat`, not the "ukeat" its name would suggest
+  (fixed 2026-09-18; every code in `list_uk_courts` is now one that has been
+  probed live against the atom feed and confirmed to return entries).
 - **Search is over the judgment text**, so a phrase the court would actually
   write finds more than a legal concept it never names.
 - **Judgments are long** — 140k–450k characters is ordinary. `get_uk_judgment`
@@ -111,7 +144,7 @@ directly, instead of just this one's:
 }
 ```
 
-Both URLs reach the same gateway and the same 1576+ data sources. The
+Both URLs reach the same gateway and the same 1669+ data sources. The
 only difference is which pack's tools are listed **directly**; `ask_pipeworx`
 reaches all of them from either one.
 

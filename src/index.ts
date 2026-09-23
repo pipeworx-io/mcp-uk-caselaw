@@ -639,19 +639,53 @@ function collapse(s: string): string {
  * UK case law — Find Case Law, The National Archives.
  *
  * Judgments and tribunal decisions of the courts of England & Wales, the UK
- * Supreme Court, and the UK tribunals. Keyless: the Atom search feed at
- * caselaw.nationalarchives.gov.uk/atom.xml serves search, and every judgment
- * publishes its full text as Akoma Ntoso XML at <slug>/data.xml.
+ * Supreme Court, and the Employment Appeal Tribunal. Keyless: the Atom search
+ * feed at caselaw.nationalarchives.gov.uk/atom.xml serves search, and every
+ * judgment publishes its full text as Akoma Ntoso XML at <slug>/data.xml.
  *
- * Probed live 2026-08-11, because two of these will bite anyone who guesses:
+ * COVERAGE — this is not all UK case law, and a 0-row result must never read
+ * as "no such case":
+ *  - No Crown Court, County Court or Magistrates' Court judgments — those are
+ *    mostly given orally and never transcribed, so Find Case Law structurally
+ *    cannot hold them.
+ *  - No dockets, pleadings or filings — this is judgments only, there is no UK
+ *    equivalent of PACER here.
+ *  - England & Wales and UK-wide tribunals/apex courts only. Scotland and
+ *    Northern Ireland's own court systems are not covered (a case that also
+ *    went through NI/Scottish courts may still appear only for its UK Supreme
+ *    Court or Privy Council leg).
+ *  - Employment Appeal Tribunal (EAT) only — the first-tier Employment
+ *    Tribunal (claims before they reach appeal) is a different, uncovered
+ *    corpus; see the separate uk-tribunals pack/task for that.
+ *  - No citator/treatment data — a judgment is returned as published, with no
+ *    signal on whether it was later overturned, doubted or followed.
+ *  - Coverage is mostly 2001 onward; earlier judgments exist unevenly at best.
+ *
+ * LICENCE — Find Case Law's Open Justice Licence covers per-query pass-through
+ * (a caller searches, we relay one answer) but excludes "computational
+ * analysis": bulk programmatic extraction or mirroring/indexing the corpus
+ * requires a separate licence Pipeworx does not hold. Do not build a mirror
+ * from this pack.
+ *
+ * Probed live 2026-08-11 and again 2026-09-18, because several of these will
+ * bite anyone who guesses:
  *  - An INVALID `order` value returns zero entries rather than an error, so a
  *    typo'd sort reads as "no such cases". Orders are validated here instead of
  *    passed through.
  *  - Passing `order` WITHOUT `per_page` silently drops the page from 50 to 10,
  *    so per_page is always sent explicitly.
- *  - An unrecognised `court` is rejected with HTTP 400 once `order`/`per_page`
- *    are also set, so that case is caught and reported as a bad court code
- *    rather than surfacing as an upstream failure.
+ *  - `court` is validated against COURTS *before* the fetch — Find Case Law
+ *    answers an unrecognised code with a bare HTTP 400, and prior to 09-18
+ *    that leaked to the caller as a raw upstream error including the request
+ *    URL. It is now rejected up front as `invalid_arguments`, naming the code
+ *    and the valid list, and the same mapping catches a code that passes our
+ *    own list but still 400s upstream (COURTS can drift; see the Employment
+ *    Appeal Tribunal note below).
+ *  - The Employment Appeal Tribunal's real code is `eat`, not the "ukeat" the
+ *    name would suggest — shipped wrong until 09-18, when `list_uk_courts`
+ *    itself was verified to be handing out a code that always 400s. Every
+ *    code in COURTS is now one this file has probed live and confirmed
+ *    returns entries.
  * The date filters do bite, and the court filter is a real filter rather than a
  * silently ignored one — both verified rather than assumed.
  */
@@ -698,14 +732,19 @@ const COURTS: { code: string; name: string }[] = [
   { code: 'ukut/tcc', name: 'Upper Tribunal (Tax and Chancery Chamber)' },
   { code: 'ukftt/grc', name: 'First-tier Tribunal (General Regulatory Chamber)' },
   { code: 'ukftt/tc', name: 'First-tier Tribunal (Tax Chamber)' },
-  { code: 'ukeat', name: 'Employment Appeal Tribunal' },
+  // Find Case Law's real code is "eat", not "ukeat" — verified live 09-18;
+  // "ukeat" 400s on every request. This is the EAT (appeals) only, not the
+  // first-tier Employment Tribunal.
+  { code: 'eat', name: 'Employment Appeal Tribunal' },
 ];
+
+const COURT_CODES = new Set(COURTS.map((c) => c.code));
 
 const tools: McpToolExport['tools'] = [
   {
     name: 'search_uk_caselaw',
     description:
-      'Search UK court judgments and tribunal decisions by subject, party name or judge — the Supreme Court, Court of Appeal, High Court, Court of Protection, Family Court and the UK tribunals, from The National Archives\' Find Case Law. Returns the case name, the NEUTRAL CITATION ("[2026] EWHC 1996 (Comm)"), the court, the judgment date and a link, plus the identifier get_uk_judgment reads to fetch the full text. Use this for UK, English, Welsh, Northern Irish and UK-wide law. US case law is a different corpus entirely — search_case_law and find_case cover that, and returning a US authority for a UK question is a wrong answer, not a near miss.',
+      'Search UK court judgments and tribunal decisions by subject, party name or judge — the Supreme Court, Court of Appeal, High Court, Court of Protection, Family Court, Employment Appeal Tribunal and the other UK tribunals, from The National Archives\' Find Case Law. Returns the case name, the NEUTRAL CITATION ("[2026] EWHC 1996 (Comm)"), the court, the judgment date and a link, plus the identifier get_uk_judgment reads to fetch the full text. Use this for England & Wales and UK-wide law. NOT ALL UK LAW: no Crown/County/Magistrates\' Court judgments (given orally, never transcribed), no dockets/pleadings/filings, Scotland and Northern Ireland\'s own court systems are not covered, the first-tier Employment Tribunal is not covered (EAT appeals only), there is no citator/treatment signal, and coverage is mostly 2001 onward — a 0-row result means "not found here", not "does not exist". Per-query pass-through only, one judgment at a time: Find Case Law\'s Open Justice Licence excludes bulk or computational extraction across its records. US case law is a different corpus entirely — search_case_law and find_case cover that, and returning a US authority for a UK question is a wrong answer, not a near miss.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -736,7 +775,7 @@ const tools: McpToolExport['tools'] = [
   {
     name: 'list_uk_courts',
     description:
-      'List the UK courts and tribunals covered by Find Case Law with the court code each one uses. Call this before narrowing search_uk_caselaw by court — a code like "ewhc/comm" cannot be guessed from "Commercial Court", and an unrecognised code returns no judgments rather than an error.',
+      'List the UK courts and tribunals covered by Find Case Law with the court code each one uses. Call this before narrowing search_uk_caselaw by court — a code like "ewhc/comm" cannot be guessed from "Commercial Court". Every code here has been probed live against the atom feed; an unlisted code is rejected as invalid_arguments rather than sent upstream.',
     inputSchema: { type: 'object' as const, properties: {} },
   },
 ];
@@ -817,6 +856,16 @@ async function searchUkCaselaw(args: Record<string, unknown>) {
     if (typeof v === 'string' && v.trim()) p.set(key, v.trim());
   }
   const court = typeof args.court === 'string' ? args.court.trim().toLowerCase() : '';
+  // Validated BEFORE the fetch, not caught after: Find Case Law answers an
+  // unrecognised court with a bare HTTP 400, and letting that reach fcl()
+  // would surface as a raw upstream failure blaming us for a fixable
+  // argument. `user_error:` is the routing token the gateway strips and
+  // classifies as `invalid_arguments` for the caller.
+  if (court && !COURT_CODES.has(court)) {
+    throw new Error(
+      `user_error: "${court}" is not a valid Find Case Law court code. Call list_uk_courts for the valid codes. Valid codes: ${[...COURT_CODES].join(', ')}.`,
+    );
+  }
   if (court) p.set('court', court);
   const from = ymd(args.from_date, 'from_date');
   if (from) { p.set('from_date_0', from.d); p.set('from_date_1', from.m); p.set('from_date_2', from.y); }
@@ -834,30 +883,33 @@ async function searchUkCaselaw(args: Record<string, unknown>) {
   try {
     xml = await fcl(`/atom.xml?${p}`);
   } catch (err) {
-    // Find Case Law answers an unrecognised court with HTTP 400. Reporting that
-    // as an upstream failure would blame us for a fixable argument.
-    if (court && !COURTS.some((c) => c.code === court) && /HTTP 400/.test(String(err))) {
-      return {
-        found: false,
-        reason: 'unknown_court_code',
-        court,
-        hint: `"${court}" is not a Find Case Law court code. Call list_uk_courts for the valid codes — they look like "uksc", "ewca/civ", "ewhc/comm" and cannot be guessed from a court's name.`,
-      };
+    // `court` is already validated against COURTS above, so a 400 reaching
+    // here means COURTS itself has drifted (a code that used to work upstream
+    // stopped, the way "ukeat" did) — a Pipeworx-side defect, not a caller
+    // mistake. Named explicitly rather than left as a raw URL in the error.
+    if (court && /HTTP 400/.test(String(err))) {
+      throw new Error(
+        `Find Case Law rejected court code "${court}" with HTTP 400 even though it is in our own court list — the upstream code may have changed. This is a Pipeworx-side bug, not a bad argument; please report it. Try search_uk_caselaw without the court filter in the meantime.`,
+      );
     }
     throw err;
   }
   const judgments = [...xml.matchAll(/<entry>[\s\S]*?<\/entry>/g)].map((m) => parseEntry(m[0]));
 
   if (!judgments.length) {
-    const knownCourt = !court || COURTS.some((c) => c.code === court);
+    // `court` is validated above, so a genuinely bad code never reaches here —
+    // an empty result at this point means no judgment matched, not that the
+    // case doesn't exist. Find Case Law is not all UK law (see the file
+    // header): Crown/County/Magistrates' judgments, dockets/filings, Scotland
+    // and Northern Ireland's own courts, and the first-tier Employment
+    // Tribunal are all outside this corpus regardless of how the query is
+    // phrased.
     return {
       found: false,
-      reason: knownCourt ? 'no_matching_judgments' : 'unknown_court_code',
+      reason: 'no_matching_judgments',
       query: args.query ?? null,
       court: court || null,
-      hint: knownCourt
-        ? 'No judgment matched. Find Case Law indexes the full judgment text, so a phrase from the judgment works better than a legal concept the court never names; widening the date range or dropping the court filter is the usual next step.'
-        : `"${court}" is not a Find Case Law court code, and an unrecognised code returns no judgments rather than an error. Call list_uk_courts for the valid codes.`,
+      hint: 'No judgment matched in Find Case Law. This does not mean the case does not exist: Find Case Law indexes only written judgments of England & Wales courts, the UK Supreme Court and the Employment Appeal Tribunal from roughly 2001 onward — it holds no Crown/County/Magistrates\' Court decisions, no Scotland/Northern Ireland cases, and no first-tier Employment Tribunal decisions. Find Case Law indexes the full judgment text, so a phrase from the judgment works better than a legal concept the court never names; widening the date range or dropping the court filter is the usual next step.',
     };
   }
 
