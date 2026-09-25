@@ -5,7 +5,7 @@ Find Case Law service: the Supreme Court, Privy Council, Court of Appeal, High
 Court, Court of Protection, Family Court, the Upper and First-tier Tribunals and
 the Employment Appeal Tribunal.
 
-Part of [Pipeworx](https://pipeworx.io) — an MCP gateway connecting AI agents to 1669+ live data sources.
+Part of [Pipeworx](https://pipeworx.io) — an MCP gateway connecting AI agents to 1679+ live data sources.
 
 Search by subject, party or judge, then read the **full text** of any judgment
 from its neutral citation — so a quoted passage or a cited authority can be
@@ -144,7 +144,7 @@ directly, instead of just this one's:
 }
 ```
 
-Both URLs reach the same gateway and the same 1669+ data sources. The
+Both URLs reach the same gateway and the same 1679+ data sources. The
 only difference is which pack's tools are listed **directly**; `ask_pipeworx`
 reaches all of them from either one.
 
