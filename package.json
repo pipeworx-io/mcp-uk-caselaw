@@ -1,6 +1,6 @@
 {
   "name": "@pipeworx/mcp-uk-caselaw",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "UK case law — Find Case Law, The National Archives.",
   "type": "module",
   "main": "lib/index.js",
@@ -27,7 +27,7 @@
     "mode": "gateway",
     "slug": "uk-caselaw",
     "gatewaySlug": "uk-caselaw",
-    "sourceHash": "v1-0295b74f27ab07ee4fe09b88e13968051c416ad666df7fc405e77734fae582bf",
-    "sourceCommit": "f47d581679e1e887373df51ba623f891fbe4c464"
+    "sourceHash": "v1-a8cdb5d135f5882cd2b0b9ed89a478b29cda00fcd45442735664d7df150d3ecf",
+    "sourceCommit": "ca52e7ed1e1ccad897c2da1b0fa105edc0bc3b2e"
   }
 }
